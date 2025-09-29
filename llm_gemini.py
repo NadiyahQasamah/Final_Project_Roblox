@@ -271,7 +271,7 @@ def analyze_sentiment_with_api(text):
 st.markdown("""
 <div style="text-align: center; padding: 2rem 0;">
     <h1 style="font-size: 3rem; background: linear-gradient(135deg, #1e40af, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0.5rem;">
-        🤖 Sentiment AI Chat
+        Sentiment AI Chat
     </h1>
     <p style="color: #64748b; font-size: 1.2rem; margin: 0;">
         Analisis Sentimen Cerdas dengan AI 🚀
@@ -548,7 +548,7 @@ elif menu == "ℹ️ Tentang Aplikasi":
     st.markdown("""
     <div style="text-align: center; margin-top: 2rem; padding: 1rem 0; color: #64748b; border-top: 1px solid #e2e8f0;">
         <p style="margin: 0; font-size: 0.9rem;">
-            Powered by 🤖 <strong>Sentiment AI</strong> | Built with Streamlit 🚀
+            Powered by <strong>Sentiment AI</strong> | Built with Streamlit 🚀
         </p>
     </div>
     """, unsafe_allow_html=True)
