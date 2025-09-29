@@ -473,7 +473,7 @@ if menu == "💬 Chat & Analisis":
 elif menu == "ℹ️ Tentang Aplikasi":
     
     st.markdown("""
-    <h2 style="color: #1e40af; text-align: center; margin-bottom: 2rem;">
+     <h2 style="color: #1e40af; text-align: center; margin-bottom: 2rem;">
         🚀 Tentang Sentiment AI Chat
     </h2>
     
