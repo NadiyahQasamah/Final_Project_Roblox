@@ -473,17 +473,15 @@ if menu == "💬 Chat & Analisis":
 elif menu == "ℹ️ Tentang Aplikasi":
     
     st.markdown("""
-    <div class="custom-card">
-        <h2 style="color: #1e40af; text-align: center; margin-bottom: 2rem;">
-            🚀 Tentang Sentiment AI Chat
-        </h2>
-        
-        <div style="text-align: center; margin-bottom: 2rem;">
-            <p style="font-size: 1.1rem; color: #64748b; line-height: 1.6;">
-                Aplikasi analisis sentimen berbasis AI yang menggabungkan kekuatan 
-                <strong>LSTM Deep Learning</strong> dengan <strong>Google Generative AI</strong>
-            </p>
-        </div>
+    <h2 style="color: #1e40af; text-align: center; margin-bottom: 2rem;">
+        🚀 Tentang Sentiment AI Chat
+    </h2>
+    
+    <div style="text-align: center; margin-bottom: 2rem;">
+        <p style="font-size: 1.1rem; color: #64748b; line-height: 1.6;">
+            Aplikasi analisis sentimen berbasis AI yang menggabungkan kekuatan 
+            <strong>LSTM Deep Learning</strong> dengan <strong>Google Generative AI</strong>
+        </p>
     </div>
     """, unsafe_allow_html=True)
     
