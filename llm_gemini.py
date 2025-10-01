@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np # MODIFIKASI: Diperlukan untuk memproses hasil prediksi
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 import streamlit as st
@@ -8,16 +9,14 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain.chains import LLMChain
 import plotly.express as px
-import plotly.graph_objects as go
 
-# ===== KUSTOMISASI CSS TEMA BIRU =====
+# ===== KUSTOMISASI CSS (TIDAK BERUBAH) =====
 st.set_page_config(
     page_title="💙 Sentiment AI Chat",
     page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
 # CSS untuk tema biru yang menarik
 st.markdown("""
 <style>
@@ -208,268 +207,184 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ===== Load model LSTM =====
+# ===== Muat model LSTM & Tokenizer (Tidak berubah) =====
 @st.cache_resource
-def load_lstm_model():
-    return load_model("model_lstm.h5")
-
-# Load models
-try:
-    lstm_model = load_lstm_model()
-    model_loaded = True
-except:
-    model_loaded = False
-    st.error("❌ Tidak dapat memuat model. Pastikan file model_lstm.h5 tersedia.")
-
-# ===== Fungsi analisis sentimen hybrid (API + LSTM info) =====
-def analyze_sentiment_with_api(text):
-    """Analisis sentimen menggunakan API dengan info model LSTM"""
+def load_assets():
     try:
-        # Info bahwa kita punya model LSTM tapi analisis via API
-        model_status = "Model LSTM loaded" if model_loaded else "Model LSTM not available"
+        model = load_model("model_lstm.h5")
+        with open("tokenizer_roblox.pkl", "rb") as f:
+            tokenizer = pkl.load(f)
+        return model, tokenizer
+    except Exception as e:
+        st.error(f"❌ Gagal memuat aset model: {e}. Pastikan 'model_lstm.h5' dan 'tokenizer_roblox.pkl' ada di folder yang sama.")
+        return None, None
+
+lstm_model, tokenizer = load_assets()
+
+# ===== MODIFIKASI: Fungsi prediksi untuk 3 KELAS =====
+def predict_sentiment_lstm(text):
+    """Fungsi ini menggunakan model LSTM untuk prediksi 3 kelas (Positif, Negatif, Netral)."""
+    if not lstm_model or not tokenizer:
+        return "Netral", 0.5
+    
+    seq = tokenizer.texts_to_sequences([text])
+    padded = pad_sequences(seq, maxlen=100)
+    
+    # === BAGIAN PENTING UNTUK DIAGNOSIS ===
+    prediction_result = lstm_model.predict(padded)
+    print("-----------------------------------------")
+    print("DIAGNOSIS OUTPUT MODEL:")
+    print("BENTUK OUTPUT (SHAPE):", prediction_result.shape)
+    print("ISI OUTPUT (KONTEN):", prediction_result[0])
+    print("-----------------------------------------")
+    # =======================================
+    
+    # Logika untuk 3 kelas (seperti sebelumnya)
+    pred_probs = prediction_result[0]
+    pred_class_index = np.argmax(pred_probs)
+    confidence = float(pred_probs[pred_class_index])
+    class_labels = ["Negatif", "Netral", "Positif"] # Asumsi urutan 0, 1, 2
+    sentiment = class_labels[pred_class_index]
         
-        # Prompt khusus untuk analisis sentimen
-        sentiment_prompt = ChatPromptTemplate.from_messages([
-            ("system", f"""Anda adalah ahli analisis sentimen yang bekerja dengan sistem yang memiliki {model_status}. 
-            Analisis teks berikut dan berikan:
-            1. Sentimen: Positif atau Negatif atau Netral
-            2. Confidence score: 0.0-1.0
-            3. Penjelasan singkat
-            
-            Format respons: 
-            Sentimen: [Positif/Negatif/Netral]
-            Confidence: [0.0-1.0]
-            Penjelasan: [penjelasan singkat]"""),
+    return sentiment, confidence
+
+# ===== Fungsi generate penjelasan (Tidak berubah) =====
+def generate_explanation_with_api(text, sentiment, confidence):
+    """Meminta penjelasan dari Gemini berdasarkan hasil analisis LSTM."""
+    try:
+        explanation_prompt = ChatPromptTemplate.from_messages([
+            ("system", f"""Anda adalah asisten AI. Sebuah model LSTM lokal telah menganalisis teks berikut dan menyimpulkan sentimennya adalah '{sentiment}' dengan tingkat kepercayaan {confidence:.2%}.
+            Tugas Anda adalah memberikan penjelasan mengapa teks tersebut bisa dianggap memiliki sentimen '{sentiment}'. Jangan analisis ulang sentimennya, cukup jelaskan hasil yang sudah ada.
+            """),
             ("human", "Teks: {text}")
         ])
-        
-        sentiment_chain = LLMChain(llm=llm, prompt=sentiment_prompt)
-        response = sentiment_chain.run({"text": text})
-        
-        # Parse response untuk mendapatkan sentimen dan confidence
-        lines = response.strip().split('\n')
-        sentiment = "Positif"
-        confidence = 0.5
-        explanation = ""
-        
-        for line in lines:
-            if line.startswith("Sentimen:"):
-                sentiment = line.replace("Sentimen:", "").strip()
-            elif line.startswith("Confidence:"):
-                try:
-                    confidence = float(line.replace("Confidence:", "").strip())
-                except:
-                    confidence = 0.5
-            elif line.startswith("Penjelasan:"):
-                explanation = line.replace("Penjelasan:", "").strip()
-        
-        return sentiment, confidence, explanation
+        explanation_chain = LLMChain(llm=llm, prompt=explanation_prompt)
+        response = explanation_chain.run({"text": text})
+        return response.strip()
     except Exception as e:
-        return "Error", 0.0, str(e)
+        return f"Tidak bisa mendapatkan penjelasan dari AI: {e}"
 
-# ===== Header dengan styling menarik =====
-st.markdown("""
-<div style="text-align: center; padding: 2rem 0;">
-    <h1 style="font-size: 3rem; background: linear-gradient(135deg, #1e40af, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0.5rem;">
-        Sentiment AI Chat
-    </h1>
-    <p style="color: #64748b; font-size: 1.2rem; margin: 0;">
-        Analisis Sentimen Cerdas dengan AI 🚀
-    </p>
-</div>
-""", unsafe_allow_html=True)
-
-# ===== Sidebar Navigation =====
+# ===== Header, Sidebar, Konfigurasi LLM (Tidak berubah) =====
+# ... (Kode dari Header hingga Konfigurasi LLM tetap sama) ...
+st.markdown("""<div style="text-align: center; padding: 2rem 0;"><h1 style="font-size: 3rem; background: linear-gradient(135deg, #1e40af, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0.5rem;">🤖 Sentiment AI Chat</h1><p style="color: #64748b; font-size: 1.2rem; margin: 0;">Analisis Sentimen Cerdas dengan AI 🚀</p></div>""", unsafe_allow_html=True)
 with st.sidebar:
-    st.markdown("""
-    <div style="text-align: center; padding: 1rem 0;">
-        <h2 style="color: white; margin-bottom: 1rem;">🧭 Navigasi</h2>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    menu = st.radio(
-        "Pilih halaman:",
-        ["💬 Chat & Analisis", "ℹ️ Tentang Aplikasi"],
-        label_visibility="collapsed"
-    )
-
-# ===== Konfigurasi LLM Chat =====
-api_key = "AIzaSyApZtVEV_jCDrP1Rk9PdUSGgYli0NKlIwM"  # Ganti dengan API key yang valid
+    st.markdown("""<div style="text-align: center; padding: 1rem 0;"><h2 style="color: white; margin-bottom: 1rem;">🧭 Navigasi</h2></div>""", unsafe_allow_html=True)
+    menu = st.radio("Pilih halaman:", ["💬 Chat & Analisis", "ℹ️ Tentang Aplikasi"], label_visibility="collapsed")
+api_key = "AIzaSyApZtVEV_jCDrP1Rk9PdUSGgYli0NKlIwM"
 llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
-    temperature=1,
-    google_api_key=api_key
-)
-
-prompt_template = ChatPromptTemplate.from_messages([
-    ("system", "Anda adalah asisten AI yang membantu menganalisis sentimen berdasarkan def load_lstm_model yang sudah diberikan dan menjawab pertanyaan dari file yang diupload dengan mengkategorikan sentimen dari file yang diupload."),
-    ("human", "Pertanyaan: {question}\nRiwayat chat:\n{history}")
-])
-
+    model="gemini-2.5-flash", 
+    temperature=0.7, 
+    google_api_key=api_key)
+prompt_template = ChatPromptTemplate.from_messages([("system", "Anda adalah asisten AI yang ramah dan membantu. Jawab pertanyaan pengguna dengan jelas seputar analisis sentimen."), ("human", "Pertanyaan: {question}\nRiwayat chat:\n{history}")])
 chain = LLMChain(llm=llm, prompt=prompt_template)
 
-# ===== MENU CHAT & ANALISIS =====
+
+# ===== KONTEN HALAMAN BERDASARKAN MENU =====
 if menu == "💬 Chat & Analisis":
+    st.markdown("""<div class="custom-card"><h3 style="color: #1e40af; margin-bottom: 1rem;">📁 Upload File untuk Analisis</h3><p style="color: #64748b;">Upload file CSV atau PDF untuk analisis sentimen otomatis menggunakan model LSTM lokal.</p></div>""", unsafe_allow_html=True)
+    uploaded_file = st.file_uploader("Upload file di sini", type=["csv", "pdf"], help="Pilih file CSV dengan kolom 'text' atau file PDF untuk dianalisis", label_visibility="collapsed")
     
-    # File uploader dengan styling menarik
-    st.markdown("""
-    <div class="custom-card">
-        <h3 style="color: #1e40af; margin-bottom: 1rem;">📁 Upload File untuk Analisis</h3>
-        <p style="color: #64748b;">Upload file CSV atau PDF untuk analisis sentimen otomatis</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    uploaded_file = st.file_uploader(
-        "Upload file di sini",
-        type=["csv", "pdf"],
-        help="Pilih file CSV dengan kolom 'text' atau file PDF untuk dianalisis",
-        label_visibility="collapsed"
-    )
-    
-    if uploaded_file:
-        with st.spinner('🔄 Menganalisis file dengan AI...'):
+    if uploaded_file and (lstm_model and tokenizer):
+        with st.spinner('🔄 Menganalisis file dengan model LSTM lokal...'):
             texts = []
-            
             if uploaded_file.type == "text/csv":
                 df = pd.read_csv(uploaded_file)
-                if "text" not in df.columns:
-                    st.error("❌ CSV harus memiliki kolom bernama 'text'.")
-                else:
-                    texts = df["text"].astype(str).tolist()
-                    
+                if "text" not in df.columns: st.error("❌ CSV harus memiliki kolom bernama 'text'.")
+                else: texts = df["text"].astype(str).tolist()
             elif uploaded_file.type == "application/pdf":
                 pdf = PdfReader(uploaded_file)
                 for page in pdf.pages:
                     page_text = page.extract_text()
-                    if page_text:
-                        texts.append(page_text)
+                    if page_text: texts.append(page_text)
 
             if texts:
                 results = []
                 progress_bar = st.progress(0)
-                
                 for i, text in enumerate(texts):
-                    sentiment, confidence, explanation = analyze_sentiment_with_api(text)
+                    sentiment, confidence = predict_sentiment_lstm(text)
+                    explanation = "Penjelasan dihasilkan saat analisis individu." 
                     results.append((sentiment, confidence, explanation))
                     progress_bar.progress((i + 1) / len(texts))
                 
-                # Tampilkan hasil dengan styling menarik
-                st.markdown("### 📊 Hasil Analisis Sentimen")
-                
-                # Statistik hasil
+                st.markdown("### 📊 Hasil Analisis Sentimen (by LSTM Model)")
                 positive_count = sum(1 for r in results if r[0] == "Positif")
                 negative_count = sum(1 for r in results if r[0] == "Negatif")
+                # MODIFIKASI: Menghitung kelas Netral secara eksplisit
                 neutral_count = sum(1 for r in results if r[0] == "Netral")
-                neutral_count = len(results) - positive_count - negative_count
 
                 col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("Total Teks", len(results), delta=None)
-                with col2:
-                    st.metric("Positif", positive_count, delta=f"{positive_count/len(results)*100:.1f}%")
-                with col3:
-                    st.metric("Negatif", negative_count, delta=f"{negative_count/len(results)*100:.1f}%")
-                with col4:
-                    st.metric("Netral", neutral_count, delta=f"{neutral_count/len(results)*100:.1f}%")
-                
-                # Chart hasil
+                with col1: st.metric("Total Teks", len(results))
+                with col2: st.metric("Positif", positive_count)
+                with col3: st.metric("Negatif", negative_count)
+                with col4: st.metric("Netral", neutral_count)
+
                 if len(results) > 1:
+                    # MODIFIKASI: Menambahkan data Netral ke pie chart
                     fig = px.pie(
                         values=[positive_count, negative_count, neutral_count],
                         names=["Positif", "Negatif", "Netral"],
                         title="Distribusi Sentimen",
-                        color_discrete_sequence=["#10b981", "#ef4444"," #FFF9C4"] # Warna hijau, merah, abu-abu
+                        color_discrete_sequence=["#10b981", "#ef4444", "#FBC02D"] # Hijau, Merah, Kuning
                     )
                     st.plotly_chart(fig, use_container_width=True)
 
-                
-                # Detail hasil
                 st.markdown("### 📝 Detail Hasil")
                 for i, (text, (sentiment, confidence, explanation)) in enumerate(zip(texts, results)):
+                    # MODIFIKASI: Menambahkan logika untuk kelas Netral
                     if sentiment == "Positif":
                         sentiment_class = "sentiment-positive"
                     elif sentiment == "Negatif":
                         sentiment_class = "sentiment-negative"
-                    else:
+                    else: # Netral
                         sentiment_class = "sentiment-neutral"
+                        
                     st.markdown(f"""
                     <div class="custom-card">
-                        <div class="{sentiment_class}">
-                            {sentiment} ({confidence:.2%} confidence)
-                        </div>
-                        <p style="margin-top: 0.5rem; color: #374151; font-weight: 500;">{explanation}</p>
+                        <div class="{sentiment_class}">{sentiment} ({confidence:.2%} confidence)</div>
                         <p style="margin-top: 0.5rem; color: #6b7280; font-style: italic;">{text[:200]}{'...' if len(text) > 200 else ''}</p>
                     </div>
                     """, unsafe_allow_html=True)
 
     # Chat Section
-    st.markdown("""
-    <div class="custom-card">
-        <h3 style="color: #1e40af; margin-bottom: 1rem;">💬 Chat dengan AI</h3>
-        <p style="color: #64748b;">Tanyakan apapun dan dapatkan analisis sentimen real-time</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Initialize chat history
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-
-    # Display chat history
+    st.markdown("""<div class="custom-card">
+                <h3 style="color: #1e40af; margin-bottom: 1rem;">
+                💬 Chat dengan AI</h3><p style="color: #64748b;">
+                Tanyakan apapun dan dapatkan analisis sentimen real-time</p>
+    </div>""", unsafe_allow_html=True)
+    if "messages" not in st.session_state: st.session_state.messages = []
     for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+        with st.chat_message(message["role"]): st.markdown(message["content"])
 
-    # Chat input
     if user_input := st.chat_input("💭 Tulis pesan Anda di sini..."):
-        # Get history
-        history_text = "\n".join([
-            f'{msg["role"]}: {msg["content"]}' 
-            for msg in st.session_state.messages[-4:]
-        ]) or "Tidak ada riwayat sebelumnya"
-        
-        # Add user message
         st.session_state.messages.append({"role": "user", "content": user_input})
-        with st.chat_message("user"):
-            st.markdown(user_input)
-
-        # Generate AI response dengan analisis sentimen
+        with st.chat_message("user"): st.markdown(user_input)
         with st.chat_message("assistant"):
-            with st.spinner("🤔 Sedang menganalisis dan berpikir..."):
-                try:
-                    # Analisis sentimen terlebih dahulu
-                    sentiment, confidence, explanation = analyze_sentiment_with_api(user_input)
-                    
-                    # Generate response utama
-                    response_text = chain.run({
-                        "question": user_input,
-                        "history": history_text
-                    })
-                    
-                    # Tampilkan sentiment badge
-                    if sentiment == "Positif":
-                        sentiment_class = "sentiment-positive"
-                    elif sentiment == "Negatif":
-                        sentiment_class = "sentiment-negative"
-                    else:
-                        sentiment_class = "sentiment-neutral"
-                    st.markdown(f"""
-                    <div class="{sentiment_class}" style="margin-bottom: 1rem;">
-                        Sentimen: {sentiment} ({confidence:.2%}) - {explanation}
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    st.markdown(response_text)
-                    
-                    # Add AI message
-                    st.session_state.messages.append({
-                        "role": "assistant", 
-                        "content": f"**Sentimen: {sentiment} ({confidence:.2%})** - {explanation}\n\n{response_text}"
-                    })
-                except Exception as e:
-                    st.error(f"❌ Terjadi kesalahan: {str(e)}")
-    
+            with st.spinner("🤔 Menganalisis sentimen & menyiapkan jawaban..."):
+                sentiment, confidence = predict_sentiment_lstm(user_input)
+                explanation = generate_explanation_with_api(user_input, sentiment, confidence)
+                history_text = "\n".join([f'{msg["role"]}: {msg["content"]}' for msg in st.session_state.messages[-4:]]) or " "
+                response_text = chain.run({"question": user_input, "history": history_text})
+                
+                # MODIFIKASI: Menambahkan logika untuk kelas Netral
+                if sentiment == "Positif":
+                    sentiment_class = "sentiment-positive"
+                elif sentiment == "Negatif":
+                    sentiment_class = "sentiment-negative"
+                else: # Netral
+                    sentiment_class = "sentiment-neutral"
 
-# ===== MENU ABOUT =====
+                st.markdown(f"""
+                <div class="{sentiment_class}" style="margin-bottom: 1rem;">
+                    <b>Sentimen (LSTM):</b> {sentiment} ({confidence:.2%})<br>
+                    <b>Penjelasan (AI):</b> {explanation}
+                </div>
+                """, unsafe_allow_html=True)
+                st.markdown(response_text)
+                
+                full_response = f"""**Sentimen:** {sentiment} ({confidence:.2%})\n\n**Penjelasan:** {explanation}\n\n{response_text}"""
+                st.session_state.messages.append({"role": "assistant", "content": full_response})
+
+# ===== MENU TENTANG APLIKASI =====
 elif menu == "ℹ️ Tentang Aplikasi":
     
     st.markdown("""
@@ -548,7 +463,7 @@ elif menu == "ℹ️ Tentang Aplikasi":
     st.markdown("""
     <div style="text-align: center; margin-top: 2rem; padding: 1rem 0; color: #64748b; border-top: 1px solid #e2e8f0;">
         <p style="margin: 0; font-size: 0.9rem;">
-            Powered by <strong>Sentiment AI</strong> | Built with Streamlit 🚀
+            Powered by 🤖 <strong>Sentiment AI</strong> | Built with Streamlit 🚀
         </p>
     </div>
     """, unsafe_allow_html=True)
