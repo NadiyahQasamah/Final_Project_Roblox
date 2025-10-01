@@ -266,7 +266,8 @@ def generate_explanation_with_api(text, sentiment, confidence):
 
 # ===== Header, Sidebar, Konfigurasi LLM (Tidak berubah) =====
 # ... (Kode dari Header hingga Konfigurasi LLM tetap sama) ...
-st.markdown("""<div style="text-align: center; padding: 2rem 0;"><h1 style="font-size: 3rem; background: linear-gradient(135deg, #1e40af, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0.5rem;">🤖 Sentiment AI Chat</h1><p style="color: #64748b; font-size: 1.2rem; margin: 0;">Analisis Sentimen Cerdas dengan AI 🚀</p></div>""", unsafe_allow_html=True)
+st.markdown("""<div style="text-align: center; padding: 2rem 0;"><h1 style="font-size: 3rem; background: linear-gradient(135deg, #1e40af, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0.5rem;">Sentiment AI Chat</
+h1><p style="color: #64748b; font-size: 1.2rem; margin: 0;">Analisis Sentimen Cerdas dengan AI 🚀</p></div>""", unsafe_allow_html=True)
 with st.sidebar:
     st.markdown("""<div style="text-align: center; padding: 1rem 0;"><h2 style="color: white; margin-bottom: 1rem;">🧭 Navigasi</h2></div>""", unsafe_allow_html=True)
     menu = st.radio("Pilih halaman:", ["💬 Chat & Analisis", "ℹ️ Tentang Aplikasi"], label_visibility="collapsed")
