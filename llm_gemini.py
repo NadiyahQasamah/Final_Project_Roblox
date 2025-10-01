@@ -271,7 +271,7 @@ h1><p style="color: #64748b; font-size: 1.2rem; margin: 0;">Analisis Sentimen Ce
 with st.sidebar:
     st.markdown("""<div style="text-align: center; padding: 1rem 0;"><h2 style="color: white; margin-bottom: 1rem;">🧭 Navigasi</h2></div>""", unsafe_allow_html=True)
     menu = st.radio("Pilih halaman:", ["💬 Chat & Analisis", "ℹ️ Tentang Aplikasi"], label_visibility="collapsed")
-api_key = "AIzaSyApZtVEV_jCDrP1Rk9PdUSGgYli0NKlIwM"
+api_key = "API_KEY GOOGLE GEMINI"
 llm = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash", 
     temperature=0.7, 
