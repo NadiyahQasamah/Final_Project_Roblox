@@ -1,5 +1,5 @@
 import pandas as pd
-import numpy as np # MODIFIKASI: Diperlukan untuk memproses hasil prediksi
+import numpy as np
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 import streamlit as st
